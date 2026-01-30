@@ -1,0 +1,6 @@
+
+{
+  "name": "Student Journal & Work Program (VPS Edition)",
+  "description": "Educational journal with SMTP auth. Deployed via GitHub + PM2 + Nginx on VPS.",
+  "requestFramePermissions": []
+}
