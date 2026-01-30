@@ -1,172 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import { Student, AppState, AttendanceStatus, UserProfile } from './types';
-import JournalHeader from './components/JournalHeader';
-import AttendanceTable from './components/AttendanceTable';
-import WorkProgramTable from './components/WorkProgramTable';
-import StudentManager from './components/StudentManager';
-import AttendanceCharts from './components/AttendanceCharts';
-import Auth from './components/Auth';
-import AdminPanel from './components/AdminPanel';
 
-const STORAGE_KEY = 'edu_journal_data_v2_persistent';
+import React, { useState, useEffect } from 'react';
+import { User, UserRole, AuthState } from './types';
+import { StorageService } from './services/storageService';
+import Auth from './components/Auth';
+import Dashboard from './components/Dashboard';
+import { LogOut, User as UserIcon, BookOpen, ShieldCheck } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('journal_user');
-    try {
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<'attendance' | 'work-program' | 'students' | 'charts' | 'admin'>('attendance');
-  
-  const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse storage", e);
-      }
-    }
-    return {
-      user: null,
-      students: [],
-      allStudentsHistory: [],
-      attendance: {},
-      workPrograms: {},
-      visibleStudentIds: []
-    };
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    isAuthenticated: false,
+    isLoading: true
   });
 
   useEffect(() => {
-    if (user) localStorage.setItem('journal_user', JSON.stringify(user));
-    else localStorage.removeItem('journal_user');
-  }, [user]);
+    const user = StorageService.getCurrentUser();
+    if (user) {
+      setAuthState({ user, isAuthenticated: true, isLoading: false });
+    } else {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, user }));
-  }, [state, user]);
-
-  if (!user) {
-    return <Auth onLogin={setUser} />;
-  }
-
-  const yearMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}`;
-  const isAdmin = user.email === 'it_admin@ippolitovka.ru';
-
-  const updateAttendance = (day: number, studentId: string, status: AttendanceStatus) => {
-    setState(prev => {
-      const currentAttendance = prev.attendance[yearMonthKey] || {};
-      const dayAttendance = currentAttendance[day] || {};
-      return {
-        ...prev,
-        attendance: {
-          ...prev.attendance,
-          [yearMonthKey]: { ...currentAttendance, [day]: { ...dayAttendance, [studentId]: status } }
-        }
-      };
-    });
-  };
-
-  const updateWorkProgram = (day: number, topic: string, notes: string) => {
-    setState(prev => {
-      const currentWP = prev.workPrograms[yearMonthKey] || {};
-      return {
-        ...prev,
-        workPrograms: {
-          ...prev.workPrograms,
-          [yearMonthKey]: { ...currentWP, [day]: { topic, notes } }
-        }
-      };
-    });
+  const handleLogin = (user: User) => {
+    StorageService.setCurrentUser(user);
+    setAuthState({ user, isAuthenticated: true, isLoading: false });
   };
 
   const handleLogout = () => {
-    setUser(null);
-    setActiveTab('attendance');
+    StorageService.setCurrentUser(null);
+    setAuthState({ user: null, isAuthenticated: false, isLoading: false });
   };
 
-  return (
-    <div className="min-h-screen pb-12 print:bg-white transition-all duration-300">
-      <div className="print:hidden">
-        <JournalHeader 
-          currentDate={currentDate} 
-          onMonthChange={setCurrentDate}
-          activeTab={activeTab === 'admin' ? 'attendance' : activeTab as any}
-          onTabChange={setActiveTab as any}
-        />
-        <div className="max-w-7xl mx-auto px-4 mt-2 flex justify-between items-center text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            <span>{user.fullName} ({user.position})</span>
-          </div>
-          <button onClick={handleLogout} className="text-red-400 hover:text-red-600 font-bold transition-colors">Выйти</button>
-        </div>
+  if (authState.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-900"></div>
       </div>
+    );
+  }
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 print:mt-0 print:px-0">
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden print:shadow-none print:border-none">
-          {activeTab === 'attendance' && (
-            <AttendanceTable 
-              currentDate={currentDate}
-              students={state.students}
-              allHistory={state.allStudentsHistory}
-              data={state.attendance[yearMonthKey] || {}}
-              onUpdate={updateAttendance}
-              onRemoveStudent={id => setState(p => ({...p, students: p.students.filter(s => s.id !== id)}))}
-              onAddStudent={s => setState(p => ({...p, students: [...p.students, s]}))}
-            />
-          )}
+  if (!authState.isAuthenticated) {
+    return <Auth onLogin={handleLogin} />;
+  }
 
-          {activeTab === 'work-program' && (
-            <div className="flex flex-col">
-              <div className="p-4 bg-slate-50 border-b border-slate-200">
-                <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Программа занятий</span>
-              </div>
-              <WorkProgramTable 
-                currentDate={currentDate}
-                data={state.workPrograms[yearMonthKey] || {}}
-                onUpdate={updateWorkProgram}
-              />
-            </div>
-          )}
-
-          {activeTab === 'admin' && isAdmin && (
-            <AdminPanel adminEmail={user.email} />
-          )}
-
-          {activeTab === 'students' && (
-            <StudentManager 
-              students={state.students} 
-              allHistory={state.allStudentsHistory}
-              onUpdate={s => setState(p => ({...p, students: s}))} 
-            />
-          )}
-
-          {activeTab === 'charts' && (
-            <AttendanceCharts 
-              students={state.students}
-              attendanceData={state.attendance}
-            />
-          )}
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header */}
+      <header className="bg-indigo-900 text-white shadow-lg px-4 md:px-8 py-4 flex flex-wrap items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <BookOpen className="w-8 h-8 text-amber-400" />
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">ГМПИ им. Ипполитова-Иванова</h1>
+            <p className="text-xs text-indigo-200">Электронный журнал посещаемости</p>
+          </div>
         </div>
+
+        <div className="flex items-center space-x-6 mt-4 md:mt-0">
+          <div className="flex flex-col items-end mr-4">
+            <span className="text-sm font-medium">{authState.user?.fullName}</span>
+            <span className="text-[10px] uppercase tracking-wider text-indigo-300">
+              {authState.user?.role === UserRole.ADMIN ? 'Администратор' : authState.user?.position}
+            </span>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="p-2 bg-indigo-800 hover:bg-indigo-700 rounded-full transition-colors"
+            title="Выход"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
+        <Dashboard user={authState.user!} />
       </main>
       
-      {isAdmin && activeTab !== 'admin' && (
-        <button 
-          onClick={() => setActiveTab('admin')}
-          className="fixed bottom-6 right-6 bg-purple-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-all z-50 print:hidden flex items-center justify-center"
-          title="Админ-панель"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z" />
-          </svg>
-        </button>
-      )}
+      <footer className="bg-white border-t border-slate-200 py-3 text-center text-slate-500 text-xs">
+        &copy; {new Date().getFullYear()} ГМПИ имени М.М. Ипполитова-Иванова. Все права защищены.
+      </footer>
     </div>
   );
 };

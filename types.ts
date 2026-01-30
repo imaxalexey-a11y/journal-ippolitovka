@@ -1,47 +1,50 @@
 
-export type AttendanceStatus = 'present' | 'absent' | 'excused' | null;
-
-export interface Student {
-  id: string;
-  fullName: string;
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  TEACHER = 'TEACHER'
 }
 
-export interface DailyAttendance {
-  [studentId: string]: AttendanceStatus;
-}
-
-export interface MonthlyAttendance {
-  [day: number]: DailyAttendance;
-}
-
-export interface WorkProgramEntry {
-  topic: string;
-  notes: string;
-}
-
-export interface MonthlyWorkProgram {
-  [day: number]: WorkProgramEntry;
-}
-
-export interface UserProfile {
+export interface User {
   id: string;
   email: string;
   fullName: string;
   position: string;
   department: string;
-  role: 'admin' | 'teacher';
-  password?: string; // Для возможности традиционного входа, если потребуется
+  role: UserRole;
+  password?: string;
+  notificationSettings?: NotificationSettings;
 }
 
-export interface AppState {
-  user: UserProfile | null;
-  students: Student[];
-  allStudentsHistory: Student[];
-  attendance: {
-    [yearMonth: string]: MonthlyAttendance;
-  };
-  workPrograms: {
-    [yearMonth: string]: MonthlyWorkProgram;
-  };
-  visibleStudentIds: string[];
+export interface NotificationSettings {
+  emailAlerts: boolean;
+  deadlineReminders: boolean;
+  reminderDaysBefore: number;
+}
+
+export interface AttendanceRecord {
+  studentName: string;
+  days: { [day: number]: 'p' | 'a' | '' }; // p=present, a=absent
+}
+
+export interface WorkProgramEntry {
+  id: string;
+  date: string; // ISO format
+  topic: string;
+  description: string;
+  notes: string;
+}
+
+export interface JournalData {
+  id: string;
+  teacherId: string;
+  month: number;
+  year: number;
+  attendance: AttendanceRecord[];
+  workProgramEntries: WorkProgramEntry[]; // Replaces simple array
+}
+
+export interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }

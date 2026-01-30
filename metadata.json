@@ -1,6 +1,9 @@
 
 {
-  "name": "Student Journal & Work Program (VPS Edition)",
-  "description": "Educational journal with SMTP auth. Deployed via GitHub + PM2 + Nginx on VPS.",
-  "requestFramePermissions": []
+  "name": "Ippolitovka Academic Journal",
+  "description": "Система ведения журналов посещаемости и рабочих программ для ГМПИ имени М.М. Ипполитова-Иванова. Включает авторизацию по доменной почте и панель администратора.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }

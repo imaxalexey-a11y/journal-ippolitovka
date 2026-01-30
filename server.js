@@ -1,135 +1,95 @@
 
-require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const USERS_FILE = path.join(__dirname, 'users.json');
-
+app.use(express.json());
 app.use(cors());
-app.use(bodyParser.json());
 
-// Инициализация базы пользователей
-if (!fs.existsSync(USERS_FILE)) {
-  const initialAdmin = {
-    id: 'admin-1',
-    email: process.env.ADMIN_EMAIL || 'it_admin@ippolitovka.ru',
-    fullName: 'Системный администратор',
-    position: 'IT отдел',
-    department: 'Управление цифровизации',
-    role: 'admin'
-  };
-  fs.writeFileSync(USERS_FILE, JSON.stringify([initialAdmin], null, 2));
-}
-
-const getUsers = () => JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-const saveUsers = (users) => fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-
-const otpStore = new Map();
-
+// Конфигурация SMTP Ипполитовки
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'mail.ippolitovka.ru',
-  port: parseInt(process.env.SMTP_PORT || '465'),
-  secure: true,
+  host: 'mail.ippolitovka.ru',
+  port: 465,
+  secure: true, // true для 465, false для других портов
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+    user: 'no-reply@ippolitovka.ru',
+    pass: 'Ipp2023!!!',
   },
-  tls: { rejectUnauthorized: false }
 });
 
-app.post('/api/auth/request-code', async (req, res) => {
-  const { email } = req.body;
-  const domain = process.env.ALLOWED_DOMAIN || 'ippolitovka.ru';
-  
-  if (!email || !email.endsWith(`@${domain}`)) {
-    return res.status(403).json({ error: `Доступ разрешен только для домена ${domain}` });
+// Проверка связи с почтовым сервером
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('Ошибка SMTP:', error);
+  } else {
+    console.log('Почтовый сервер готов к отправке');
+  }
+});
+
+// Эндпоинт для отправки кода авторизации
+app.post('/api/send-auth-code', async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email.endsWith('@ippolitovka.ru')) {
+    return res.status(403).json({ error: 'Доступ запрещен' });
   }
 
-  const users = getUsers();
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  
-  if (!user) {
-    return res.status(404).json({ error: 'Пользователь не найден. Обратитесь к IT-администратору.' });
-  }
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore.set(email.toLowerCase(), { code, expires: Date.now() + 600000 });
+  const mailOptions = {
+    from: '"Журнал Ипполитовка" <no-reply@ippolitovka.ru>',
+    to: email,
+    subject: 'Код подтверждения входа',
+    text: `Ваш проверочный код: ${code}`,
+    html: `
+      <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #1e1b4b;">Вход в систему Журналов</h2>
+        <p>Вы запросили код для входа в электронный журнал ГМПИ им. Ипполитова-Иванова.</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4338ca; margin: 20px 0;">
+          ${code}
+        </div>
+        <p style="color: #666; font-size: 12px;">Если вы не запрашивали этот код, просто проигнорируйте письмо.</p>
+      </div>
+    `,
+  };
 
   try {
-    await transporter.sendMail({
-      from: `"Электронный Журнал" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Код доступа: ' + code,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-          <h2 style="color: #2563eb;">Вход в электронный журнал</h2>
-          <p>Ваш код подтверждения:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1e293b; margin: 20px 0;">${code}</div>
-          <p style="color: #64748b; font-size: 12px;">Код действителен 10 минут.</p>
-        </div>
-      `
-    });
+    await transporter.sendMail(mailOptions);
     res.json({ success: true });
   } catch (error) {
-    console.error('SMTP Error:', error);
-    res.status(500).json({ error: 'Ошибка почтового сервера. Проверьте настройки в .env' });
+    console.error('Ошибка отправки:', error);
+    res.status(500).json({ error: 'Ошибка сервера при отправке письма' });
   }
 });
 
-app.post('/api/auth/verify-code', (req, res) => {
-  const { email, code } = req.body;
-  const normalizedEmail = email.toLowerCase();
-  const stored = otpStore.get(normalizedEmail);
+// Эндпоинт для уведомлений админа
+app.post('/api/notify-admin', async (req, res) => {
+  const { type, data } = req.body;
 
-  if (stored && stored.code === code && stored.expires > Date.now()) {
-    otpStore.delete(normalizedEmail);
-    const users = getUsers();
-    const user = users.find(u => u.email.toLowerCase() === normalizedEmail);
-    res.json({ success: true, user });
-  } else {
-    res.status(401).json({ error: 'Неверный или просроченный код' });
+  const mailOptions = {
+    from: '"Система Уведомлений" <no-reply@ippolitovka.ru>',
+    to: 'it_admin@ippolitovka.ru',
+    subject: type === 'NEW_USER' ? 'Регистрация нового пользователя' : 'Системное уведомление',
+    html: `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h3 style="color: #1e1b4b;">Уведомление системы</h3>
+        <p><b>Событие:</b> ${type === 'NEW_USER' ? 'Зарегистрирован новый сотрудник' : 'Обновление данных'}</p>
+        <p><b>ФИО:</b> ${data.fullName}</p>
+        <p><b>Email:</b> ${data.email}</p>
+        <hr/>
+        <p style="font-size: 11px; color: #999;">Сгенерировано автоматически порталом ippolitovka.ru</p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка уведомления' });
   }
 });
 
-app.get('/api/admin/users', (req, res) => {
-  const { requesterEmail } = req.query;
-  if (requesterEmail !== process.env.ADMIN_EMAIL) return res.status(403).send('Forbidden');
-  res.json(getUsers());
-});
-
-app.post('/api/admin/users', (req, res) => {
-  const { requesterEmail, user } = req.body;
-  if (requesterEmail !== process.env.ADMIN_EMAIL) return res.status(403).send('Forbidden');
-
-  let users = getUsers();
-  if (user.id) {
-    users = users.map(u => u.id === user.id ? { ...u, ...user } : u);
-  } else {
-    const newUser = { ...user, id: Date.now().toString() };
-    users.push(newUser);
-  }
-  saveUsers(users);
-  res.json({ success: true });
-});
-
-app.delete('/api/admin/users/:id', (req, res) => {
-  const { requesterEmail } = req.query;
-  if (requesterEmail !== process.env.ADMIN_EMAIL) return res.status(403).send('Forbidden');
-  
-  let users = getUsers();
-  users = users.filter(u => u.id !== req.params.id);
-  saveUsers(users);
-  res.json({ success: true });
-});
-
-app.use(express.static(path.join(__dirname, '.')));
-
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Backend is running on port ${PORT}`);
+  console.log(`API Сервер запущен на порту ${PORT}`);
 });
