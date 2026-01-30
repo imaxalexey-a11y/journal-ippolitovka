@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Журнал посещаемости и РП</title>
+    <title>Журнал преподавателя — ГМПИ им. Ипполитова-Иванова</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +21,7 @@
             body { background: white !important; }
             .print\:hidden { display: none !important; }
             .bg-slate-50, .bg-slate-100 { background-color: white !important; }
-            .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { shadow: none !important; box-shadow: none !important; }
+            .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
             table { border-collapse: collapse !important; width: 100% !important; }
             th, td { border: 1px solid #cbd5e1 !important; }
             textarea, input { border: none !important; resize: none !important; }
@@ -30,11 +30,12 @@
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "xlsx": "https://esm.sh/xlsx@0.18.5"
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
@@ -42,6 +43,8 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
+    <!-- Основной скрипт, без которого приложение не запустится -->
+    <script type="module" src="./index.tsx"></script>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>

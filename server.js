@@ -78,7 +78,7 @@ app.post('/api/auth/request-code', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('SMTP Error:', error);
-    res.status(500).json({ error: 'Ошибка почтового сервера. Обратитесь в IT-отдел.' });
+    res.status(500).json({ error: 'Ошибка почтового сервера. Проверьте настройки в .env' });
   }
 });
 

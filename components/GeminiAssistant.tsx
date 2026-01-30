@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { GoogleGenAI, Type } from '@google/genai';
 
 interface GeminiAssistantProps {
-  yearMonth: string;
+  // Fix: Added subject prop and removed unused yearMonth to resolve TypeScript error on line 9
+  subject?: string;
   onGenerated: (updates: { [day: number]: { topic: string, notes: string } }) => void;
 }
 
-const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ yearMonth, onGenerated }) => {
+const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ subject: initialSubject = '', onGenerated }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [subject, setSubject] = useState('');
+  // Fix: Initialize state with the prop value
+  const [subject, setSubject] = useState(initialSubject);
   const [isLoading, setIsLoading] = useState(false);
 
   const generateProgram = async () => {
@@ -17,31 +18,15 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ yearMonth, onGenerate
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Составь план учебных занятий на месяц для предмета "${subject}". 
-        Для каждого дня месяца (с 1 по 30/31) придумай тему занятия. 
-        Учти, что в выходные занятий обычно нет, но план должен быть на каждый рабочий день.
-        Верни результат строго в формате JSON.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.INTEGER },
-                topic: { type: Type.STRING },
-                notes: { type: Type.STRING }
-              },
-              required: ['day', 'topic']
-            }
-          }
-        }
+      const response = await fetch('/api/ai/generate-program', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject })
       });
 
-      const data = JSON.parse(response.text);
+      if (!response.ok) throw new Error('Ошибка сервера');
+
+      const data = await response.json();
       const updates: { [day: number]: { topic: string, notes: string } } = {};
       data.forEach((item: any) => {
         updates[item.day] = {
@@ -53,8 +38,8 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ yearMonth, onGenerate
       onGenerated(updates);
       setIsOpen(false);
     } catch (error) {
-      console.error('Error calling Gemini API:', error);
-      alert('Ошибка при генерации плана. Попробуйте еще раз.');
+      console.error('AI Error:', error);
+      alert('Ошибка при генерации. Проверьте API_KEY на сервере.');
     } finally {
       setIsLoading(false);
     }
@@ -75,8 +60,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ yearMonth, onGenerate
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2">
           <h3 className="text-slate-900 font-bold mb-2">Генерация плана</h3>
-          <p className="text-xs text-slate-500 mb-4">Gemini поможет составить список тем для ваших занятий на текущий месяц.</p>
-          
+          <p className="text-xs text-slate-500 mb-4">Gemini составит список тем для занятий.</p>
           <input 
             type="text" 
             placeholder="Название предмета..."
@@ -84,29 +68,15 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({ yearMonth, onGenerate
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
           />
-
           <div className="flex gap-2">
             <button 
               disabled={isLoading}
               onClick={generateProgram}
               className={`flex-1 bg-blue-600 text-white p-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
             >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Генерация...
-                </>
-              ) : 'Сгенерировать темы'}
+              {isLoading ? 'Генерация...' : 'Сгенерировать темы'}
             </button>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-slate-200"
-            >
-              Отмена
-            </button>
+            <button onClick={() => setIsOpen(false)} className="bg-slate-100 text-slate-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-slate-200">Отмена</button>
           </div>
         </div>
       )}

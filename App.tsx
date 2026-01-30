@@ -5,7 +5,6 @@ import JournalHeader from './components/JournalHeader';
 import AttendanceTable from './components/AttendanceTable';
 import WorkProgramTable from './components/WorkProgramTable';
 import StudentManager from './components/StudentManager';
-import GeminiAssistant from './components/GeminiAssistant';
 import AttendanceCharts from './components/AttendanceCharts';
 import Auth from './components/Auth';
 import AdminPanel from './components/AdminPanel';
@@ -92,8 +91,11 @@ const App: React.FC = () => {
           onTabChange={setActiveTab as any}
         />
         <div className="max-w-7xl mx-auto px-4 mt-2 flex justify-between items-center text-xs text-slate-400">
-          <span>{user.fullName} ({user.position})</span>
-          <button onClick={handleLogout} className="text-red-400 hover:text-red-600 font-bold">Выйти</button>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            <span>{user.fullName} ({user.position})</span>
+          </div>
+          <button onClick={handleLogout} className="text-red-400 hover:text-red-600 font-bold transition-colors">Выйти</button>
         </div>
       </div>
 
@@ -112,11 +114,16 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'work-program' && (
-            <WorkProgramTable 
-              currentDate={currentDate}
-              data={state.workPrograms[yearMonthKey] || {}}
-              onUpdate={updateWorkProgram}
-            />
+            <div className="flex flex-col">
+              <div className="p-4 bg-slate-50 border-b border-slate-200">
+                <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Программа занятий</span>
+              </div>
+              <WorkProgramTable 
+                currentDate={currentDate}
+                data={state.workPrograms[yearMonthKey] || {}}
+                onUpdate={updateWorkProgram}
+              />
+            </div>
           )}
 
           {activeTab === 'admin' && isAdmin && (
